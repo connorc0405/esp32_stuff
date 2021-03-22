@@ -7,7 +7,7 @@ reader = UBXReader(stream)
 
 for (_, parsed_data) in reader:
 	if parsed_data.identity == "CFG-MSG" and parsed_data.msgID == 6:  # Probably telling us to enable NAV-SOL (msg ID 6)
-		ack=UBXMessage("ACK", "ACK-ACK", GET, clsID=6, msgID=1)  # 6 is CFG class id, 1 is CFG-MSG message id
+		ack = UBXMessage("ACK", "ACK-ACK", GET, clsID=6, msgID=1)  # 6 is CFG class id, 1 is CFG-MSG message id
 		print("Sending ACK...")
 		print(ack.serialize())
 		stream.write(ack.serialize())
