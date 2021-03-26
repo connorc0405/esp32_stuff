@@ -1,6 +1,6 @@
-# import network
+import network
 import socket
-# from machine import UART
+from machine import UART
 import time
 
 # Do I need to handle CFG messages?
@@ -9,7 +9,7 @@ import time
 def recv_ubx(conn_sock):
     recv_buf = bytearray()
     recv_buf.extend(conn_sock.recv(6))
-    payload_len = int.from_bytes(recv_buf[4:], byteorder='little')
+    payload_len = int.from_bytes(recv_buf[4:], 'little')
 
     while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
         data = conn_sock.recv(1)
@@ -18,25 +18,26 @@ def recv_ubx(conn_sock):
     return bytes(recv_buf)
 
 
-# ap = network.WLAN(network.AP_IF)
-# ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.10.10.1', '8.8.8.8'))
-# ap.config(essid='ESP32', channel=11)
-# ap.config(hidden=False)
-# ap.active(True)
+ap = network.WLAN(network.AP_IF)
+ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.0.0.1', '8.8.8.8'))
+ap.config(essid='ESP32', channel=11)
+ap.config(hidden=False)
+ap.active(True)
 
 listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-listen_sock.bind(('127.0.0.1', 8080))
+listen_sock.bind(('10.10.10.1', 8080))
 listen_sock.listen(1)
 conn_sock, _ = listen_sock.accept()
 
-# uart = UART(2, 115200)
-# uart.init(115200, bits=8, parity=None, stop=1)
+uart = UART(2, 115200)
+uart.init(115200, bits=8, parity=None, stop=1)
 
 
 print("Starting...")
 
 while True:
-	print("Sending a packet...")
-	ubx_pkt = recv_ubx(conn_sock)
-	# uart.write(ubx_pkt)
+    print("Receiving a packet...")
+    ubx_pkt = recv_ubx(conn_sock)
+    print("Forwarding the packet...")
+    uart.write(ubx_pkt)

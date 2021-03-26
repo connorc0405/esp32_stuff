@@ -47,7 +47,7 @@ def gen_msg(conn):
 		# stream.write(nav_sol.serialize())
 		print("Sending NAV-PVT...")
 		conn.sendall(nav_pvt.serialize())
-		print(len(nav_pvt.serialize()))
+		# print(len(nav_pvt.serialize()))
 		itow += 200
 		lat+=200
 		lon+=200
@@ -56,7 +56,7 @@ def gen_msg(conn):
 
 def main():
 	conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	conn.connect(("127.0.0.1", 8080))
+	conn.connect(("10.10.10.1", 8080))
 	gen_msg(conn)
 
 
