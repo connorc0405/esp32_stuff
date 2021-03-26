@@ -7,6 +7,8 @@ from pyubx2 import UBXReader, UBXMessage, GET
 
 def send_sol(stream):
 	itow = 172399
+	lat=423362230
+	lon=-710865380
 	while True:
 		nav_sol = UBXMessage(
 			"NAV",
@@ -26,8 +28,8 @@ def send_sol(stream):
 			"NAV-PVT",
 			GET,
 			iTOW=itow,
-			lat=423362230,
-			lon=-710865380,
+			lat=lat,
+			lon=lon,
 			hMSL=1000,
 			fixType=3
 		)
@@ -36,6 +38,8 @@ def send_sol(stream):
 		print("Sending NAV-PVT...")
 		stream.write(nav_pvt.serialize())
 		itow += 200
+		lat+=200
+		lon+=200
 		time.sleep(.2)
 
 
