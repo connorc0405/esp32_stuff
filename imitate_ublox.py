@@ -33,8 +33,8 @@ def send_sol(stream):
 			hMSL=1000,
 			fixType=3
 		)
-		print("Sending NAV-SOL...")
-		stream.write(nav_sol.serialize())
+		# print("Sending NAV-SOL...")
+		# stream.write(nav_sol.serialize())
 		print("Sending NAV-PVT...")
 		stream.write(nav_pvt.serialize())
 		itow += 200
