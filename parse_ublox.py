@@ -10,13 +10,14 @@ reader = UBXReader(stream)
 
 
 for (_, parsed_data) in reader:
+	print(parsed_data)
 	# if parsed_data.identity == "CFG-MSG":  # Probably telling us to enable NAV-SOL
-	if parsed_data.identity == "ACK-ACK":  # Probably telling us to enable NAV-SOL
+	#if parsed_data.identity == "ACK-ACK":  # Probably telling us to enable NAV-SOL
 		# print(parsed_data.msgClass)
 		# print(parsed_data.msgID)
 		# ack = UBXMessage('ACK', 'ACK-ACK', GET)
 		# print(ack)
-		print(parsed_data.clsID)
-		
+		# print(parsed_data.clsID)
+
 	
 	# <UBX(ACK-ACK, clsID=CFG, msgID=CFG-MSG)>
