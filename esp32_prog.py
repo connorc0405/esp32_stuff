@@ -13,6 +13,9 @@ def recv_ubx(conn_sock):
 
     while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
         data = conn_sock.recv(1)
+        if len(data) == 0:
+            print("Closed socket")
+            return None
         recv_buf.extend(data)
 
     return bytes(recv_buf)
@@ -24,20 +27,24 @@ ap.config(essid='ESP32', channel=11)
 ap.config(hidden=False)
 ap.active(True)
 
-listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-listen_sock.bind(('10.10.10.1', 8080))
-listen_sock.listen(1)
-conn_sock, _ = listen_sock.accept()
-
 uart = UART(2, 115200)
 uart.init(115200, bits=8, parity=None, stop=1)
 
 
-print("Starting...")
+listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listen_sock.bind(('10.10.10.1', 8080))
+listen_sock.listen(1)
 
 while True:
-    print("Receiving a packet...")
-    ubx_pkt = recv_ubx(conn_sock)
-    print("Forwarding the packet...")
-    uart.write(ubx_pkt)
+    conn_sock, _ = listen_sock.accept()
+    print("New connection")
+    print("Starting...")
+    while True:
+        print("Receiving a packet...")
+        ubx_pkt = recv_ubx(conn_sock)
+        if ubx_pkt is None: # Socket was closed
+            conn_sock.close()
+            break
+        print("Forwarding the packet...")
+        uart.write(ubx_pkt)
