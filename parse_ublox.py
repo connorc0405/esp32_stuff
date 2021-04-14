@@ -1,12 +1,12 @@
 from serial import Serial
 from pyubx2 import UBXReader, UBXMessage
 
-stream = open('captures/listening_gps_which_listens_board_115200_2.out', 'rb')
+# stream = open('captures/listening_gps_which_listens_board_115200_2.out', 'rb')
 # stream = open('captures/board_gps_boot.txt', 'rb')
-# stream = Serial('/dev/tty.usbserial-145230', 115200, timeout=5)
+stream = Serial('/dev/tty.usbserial-145210', 115200, timeout=5)
 reader = UBXReader(stream)
 
-# for (raw_data, parsed_data) in reader: print(parsed_data)
+for (raw_data, parsed_data) in reader: print(parsed_data)
 
 
 for (_, parsed_data) in reader:
