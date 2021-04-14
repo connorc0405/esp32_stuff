@@ -2,6 +2,7 @@ import datetime
 import socket
 import time
 
+
 from pyubx2 import UBXReader, UBXMessage, GET
 
 # Format is hhmmss.ss
@@ -40,8 +41,10 @@ def gen_msg(conn):
 			iTOW=itow,
 			lat=lat,
 			lon=lon,
+			height=10,
 			hMSL=1000,
-			fixType=3
+			fixType=3,
+			numSV=12
 		)
 		# print("Sending NAV-SOL...")
 		# stream.write(nav_sol.serialize())
