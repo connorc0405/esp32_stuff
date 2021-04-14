@@ -56,6 +56,7 @@ def gen_msg(conn):
 
 def main():
 	conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 	conn.connect(("10.10.10.1", 8080))
 	gen_msg(conn)
 
