@@ -25,6 +25,7 @@ ap = network.WLAN(network.AP_IF)
 ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.0.0.1', '8.8.8.8'))
 ap.config(essid='ESP32', channel=11)
 ap.config(hidden=False)
+ap.active(False)
 ap.active(True)
 
 uart = UART(2, 115200)
