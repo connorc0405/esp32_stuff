@@ -12,7 +12,8 @@ def recv_ubx(conn_sock):
     payload_len = int.from_bytes(recv_buf[4:], 'little')
 
     while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
-        data = conn_sock.recv(1)
+        print(payload_len)
+        data = conn_sock.recv(payload_len+2)
         if len(data) == 0:
             print("Closed socket")
             return None
@@ -22,7 +23,7 @@ def recv_ubx(conn_sock):
 
 
 ap = network.WLAN(network.AP_IF)
-ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.0.0.1', '8.8.8.8'))
+ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.10.10.1', '8.8.8.8'))
 ap.config(essid='ESP32', channel=11)
 ap.config(hidden=False)
 ap.active(False)
@@ -38,14 +39,18 @@ listen_sock.bind(('10.10.10.1', 8080))
 listen_sock.listen(1)
 
 while True:
+    print("Waiting on connection")
     conn_sock, _ = listen_sock.accept()
     print("New connection")
     print("Starting...")
+    num = 1
     while True:
-        print("Receiving a packet...")
+
+        #print("Receiving a packet...")
         ubx_pkt = recv_ubx(conn_sock)
         if ubx_pkt is None: # Socket was closed
             conn_sock.close()
             break
-        print("Forwarding the packet...")
+        print("Packet " + str(num))
+        num+=1
         uart.write(ubx_pkt)
