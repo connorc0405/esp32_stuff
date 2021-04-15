@@ -24,7 +24,7 @@ def recv_ubx(conn_sock):
 
 ap = network.WLAN(network.AP_IF)
 ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.10.10.1', '8.8.8.8'))
-ap.config(essid='ESP32', channel=11)
+ap.config(essid='ESP32', channel=6)
 ap.config(hidden=False)
 ap.active(False)
 ap.active(True)
