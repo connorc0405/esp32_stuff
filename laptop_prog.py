@@ -3,7 +3,6 @@ import socket
 import threading
 import time
 
-import pynput
 from pyubx2 import UBXReader, UBXMessage, GET
 
 
@@ -54,52 +53,55 @@ def gen_msgs(conn, gps_data):
 		time.sleep(.2)
 
 
-def on_press(key, gps_data):
-	print(key)
-	if key == pynput.keyboard.Key.up:  # increase latitude
-		print("north")
-		gps_data.lock.acquire()
-		gps_data.lat += 200
-		gps_data.lock.release()
+def key_monitor(gps_data):
+	while True:
+		char = input()
+		print(repr(char))
+		if char == 'w':  # increase latitude
+			print("north")
+			gps_data.lock.acquire()
+			gps_data.lat += 200
+			gps_data.lock.release()
 
-	elif key == pynput.keyboard.Key.down:  # decrease latitude
-		print("south")
-		gps_data.lock.acquire()
-		gps_data.lat -= 200
-		gps_data.lock.release()
+		elif char == 's':  # decrease latitude
+			print("south")
+			gps_data.lock.acquire()
+			gps_data.lat -= 200
+			gps_data.lock.release()
 
-	elif key == pynput.keyboard.Key.left:  # increase longitude
-		print("east")
-		gps_data.lock.acquire()
-		gps_data.lon += 200
-		gps_data.lock.release()
+		elif char == 'a':  # increase longitude
+			print("east")
+			gps_data.lock.acquire()
+			gps_data.lon += 200
+			gps_data.lock.release()
 
-	elif key == pynput.keyboard.Key.right:  # decrease longitude
-		print("west")
-		gps_data.lock.acquire()
-		gps_data.lon -= 200
-		gps_data.lock.release()
+		elif char == 'd':  # decrease longitude
+			print("west")
+			gps_data.lock.acquire()
+			gps_data.lon -= 200
+			gps_data.lock.release()
 
-	elif key == pynput.keyboard.Key.enter:  # increase height
-		print("up")
-		gps_data.lock.acquire()
-		gps_data.h_msl += 1000
-		gps_data.lock.release()
+		elif char == '[':  # increase height
+			print("up")
+			gps_data.lock.acquire()
+			gps_data.h_msl += 1000
+			gps_data.lock.release()
 
-	elif key == pynput.keyboard.Key.shift_r:  # decrease height
-		print("down")
-		gps_data.lock.acquire()
-		gps_data.h_msl -= 1000
-		gps_data.lock.release()
+		elif char == '\'':  # decrease height
+			print("down")
+			gps_data.lock.acquire()
+			gps_data.h_msl -= 1000
+			gps_data.lock.release()
 
-	else:
-		print("Unrecognized Key")
+		else:
+			print("Unrecognized Key")
 
 
 def main():
 	gps_data = GPSData(itow=172399, lat=423362230, lon=-710865380, h_msl=1000, fix_type=3, num_sats=12)
-	listener = pynput.keyboard.Listener(on_press = lambda key: on_press(key, gps_data))  # https://stackoverflow.com/questions/59815965/how-do-i-pass-an-argument-in-a-function-that-is-called-without-parentheses
-	listener.start()
+
+	input_thread = threading.Thread(target=key_monitor, args=(gps_data,))
+	input_thread.start()
 
 	conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
