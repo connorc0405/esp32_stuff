@@ -11,7 +11,6 @@ def recv_ubx(conn_sock):
     recv_buf = bytearray()
     while len(recv_buf) < 6:  # Idx 4-5 contain payload length
         try:
-            print("About to recv 6 bytes")
             data = conn_sock.recv(6-len(recv_buf)) # TODO make sure we get 6!!!
         except:
             print("Socket timeout")
@@ -22,13 +21,10 @@ def recv_ubx(conn_sock):
             return None
         
         recv_buf.extend(data)
-    print("Got first" + str(len(recv_buf)) + " bytes")
     payload_len = int.from_bytes(recv_buf[4:], 'little')
-    print("Payload len is " + str(recv_buf[4:]) + " = " + str(payload_len))
 
     while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
         try:
-            print("About to recv rest bytes")
             data = conn_sock.recv(payload_len + 8 - len(recv_buf))
         except:
             print("Socket timeout")
@@ -39,7 +35,6 @@ def recv_ubx(conn_sock):
             return None
         
         recv_buf.extend(data)
-    print("Read " + str(len(recv_buf)) + " bytes total")
 
     return bytes(recv_buf)
 
@@ -63,17 +58,15 @@ listen_sock.listen(1)
 while True:
     print("Waiting on connection")
     conn_sock, _ = listen_sock.accept()
-    conn_sock.settimeout(2)
+    conn_sock.settimeout(5)
     print("New connection")
-    print("Starting...")
     while True:
 
-        print("Packet " + str(num) + ":")
+        print("Packet " + str(num))
         ubx_pkt = recv_ubx(conn_sock)
         if ubx_pkt is None: # Socket was closed
             conn_sock.close()
             break
-        print(ubx_pkt)
 
         num+=1
         uart.write(ubx_pkt)
