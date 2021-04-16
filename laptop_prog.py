@@ -46,9 +46,8 @@ def gen_msgs(conn, gps_data):
 		)
 		gps_data.itow += 200
 		gps_data.lock.release()
-		print(f"Sending NAV-PVT...{num}")
+		print(f"Sending NAV-PVT...{num} below")
 		num+=1
-		# print(nav_pvt.serialize())
 		send_msg(conn, nav_pvt.serialize())
 		time.sleep(.2)
 
