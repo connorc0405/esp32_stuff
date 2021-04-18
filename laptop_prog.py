@@ -37,7 +37,7 @@ def gen_msgs(conn, gps_data):
         updated = gps_data.updated
         gps_data.lock.release()
 
-        if updated:
+        if updated:  # Only sending data when updated.  Else, do nothing.
             gps_data.lock.acquire()
             nav_pvt = UBXMessage(
                 "NAV",
@@ -56,10 +56,6 @@ def gen_msgs(conn, gps_data):
             print(f"Sending NAV-PVT {num}")
             num+=1
             send_msg(conn, nav_pvt.serialize())
-        else:  # Send keep-alive
-            print(f"Sending keepalive")
-            send_msg(conn, b'A')
-        time.sleep(.2)
 
 
 def key_monitor(gps_data):

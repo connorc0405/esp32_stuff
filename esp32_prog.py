@@ -9,28 +9,18 @@ import time
 
 def recv_ubx(conn_sock):
     recv_buf = bytearray()
-    try:
-        data = conn_sock.recv(1)  # Check if keepalive
-        print("received 1 byte")
-    except:
-        print("Socket timeout")
-        return ("fail", None)
-
-    if len(data) == 0:
-        print("Closed socket")
-        return ("fail", None)
-    elif data == b'A':
-        return ("keepalive", None)
-    print("Not A")
-    print(repr(data))
-    recv_buf.extend(data)
-
     while len(recv_buf) < 6:  # Idx 4-5 contain payload length
         try:
+            # Check if data there.  If not, return "no data"
             data = conn_sock.recv(6-len(recv_buf)) # TODO make sure we get 6!!!
-        except:
-            print("Socket timeout")
-            return ("fail", None)
+        except OSError as err:
+            if err.args[0] == errno.EAGAIN:  # https://stackoverflow.com/questions/16745409/what-does-pythons-socket-recv-return-for-non-blocking-sockets-if-no-data-is-r
+                print("Socket would block")
+                return ("no data", None)
+            else:
+                print(err)
+                print("Socket error")
+                return ("fail", None)
 
         if len(data) == 0:
             print("Closed socket")
@@ -44,7 +34,7 @@ def recv_ubx(conn_sock):
         try:
             data = conn_sock.recv(payload_len + 8 - len(recv_buf))
         except:
-            print("Socket timeout")
+            print("Socket error")
             return ("fail", None)
         
         if len(data) == 0:
@@ -75,18 +65,19 @@ listen_sock.listen(1)
 while True:
     print("Waiting on connection")
     conn_sock, _ = listen_sock.accept()
-    conn_sock.settimeout(5)
+    conn_sock.setblocking(0)
     print("New connection")
     num=1
     cur_pkt = None
     while True:
         print("Here")
+        time.sleep(.200)
         status, new_pkt = recv_ubx(conn_sock)
-        if status == "fail": # Socket was closed
+        if status == "fail": # Socket failure
             conn_sock.close()
             break
-        elif status == "keepalive":
-            print("Keepalive")
+        elif status == "no data":
+            print("No new data")
         elif status == "newpkt":  # Good packet
             print("Packet " + str(num))
             cur_pkt = new_pkt
