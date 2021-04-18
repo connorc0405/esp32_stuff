@@ -12,6 +12,7 @@ def recv_ubx(conn_sock):
     while len(recv_buf) < 6:  # Idx 4-5 contain payload length
         try:
             # Check if data there.  If not, return "no data"
+            conn_sock.setblocking(0)
             data = conn_sock.recv(6-len(recv_buf)) # TODO make sure we get 6!!!
         except OSError as err:
             if err.args[0] == errno.EAGAIN:  # https://stackoverflow.com/questions/16745409/what-does-pythons-socket-recv-return-for-non-blocking-sockets-if-no-data-is-r
@@ -19,6 +20,7 @@ def recv_ubx(conn_sock):
                 return ("no data", None)
             else:
                 print(err)
+                conn_sock.sendall(b'socket error')
                 print("Socket error")
                 return ("fail", None)
 
@@ -32,6 +34,7 @@ def recv_ubx(conn_sock):
 
     while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
         try:
+            conn_sock.setblocking(1)
             data = conn_sock.recv(payload_len + 8 - len(recv_buf))
         except:
             print("Socket error")
