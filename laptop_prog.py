@@ -93,14 +93,14 @@ def key_monitor(gps_data):
         elif char == '[':  # increase height
             print("up")
             gps_data.lock.acquire()
-            gps_data.h_msl += 1000
+            gps_data.h_msl += 500
             gps_data.updated = True
             gps_data.lock.release()
 
         elif char == '\'':  # decrease height
             print("down")
             gps_data.lock.acquire()
-            gps_data.h_msl -= 1000
+            gps_data.h_msl -= 500
             gps_data.updated = True
             gps_data.lock.release()
 
@@ -109,7 +109,7 @@ def key_monitor(gps_data):
 
 
 def main():
-    gps_data = GPSData(itow=172399, lat=423362230, lon=-710865380, h_msl=1000, fix_type=3, num_sats=12)
+    gps_data = GPSData(itow=172399, lat=423362230, lon=-710865380, h_msl=0, fix_type=3, num_sats=12)
 
     input_thread = threading.Thread(target=key_monitor, args=(gps_data,))
     input_thread.start()
