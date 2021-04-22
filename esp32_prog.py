@@ -2,12 +2,30 @@ import network
 import socket
 from machine import UART
 import time
-from pyubx2 import UBXReader
+from pyubx2 import UBXReader, UBXMessage
 
 
 PREAMBLE = 0xb562
+DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd5'  # <UBX(CFG-MSG, msgClass=NAV, msgID=NAV-SOL, rateDDC=0, rateUART1=0, rateUART2=0, rateUSB=0, rateSPI=0, reserved=0)>
 
-# Do I need to handle CFG messages?
+
+def disable_nav_sol():
+    while True:
+        num_written = 0
+        while num_written < len(DISABLE_NAV_SOL):
+            num_recv = uart_gps.write(DISABLE_NAV_SOL[num_written:])
+            num_written += num_recv
+
+        idx = 0
+        limit = 5
+        reader = UBXReader(uart_gps)
+        for (_, parsed_data) in reader:
+            if idx >= limit:
+                break
+            if parsed_data.identity == 'ACK-ACK':
+                return
+            else:
+                idx += 1
 
 
 def recv_gps_pkt():
@@ -15,6 +33,7 @@ def recv_gps_pkt():
     num=0
     for (raw_data, parsed_data) in reader:
         print(num)
+        print(parsed_data)
         num+=1
         num_written = 0
         while num_written < len(raw_data):
@@ -78,6 +97,8 @@ uart_gps.init(115200, bits=8, parity=None, stop=1, rx=18, tx=23, timeout=5000, t
 
 uart_ardupilot = UART(2, 115200)  # Writing to board
 uart_ardupilot.init(115200, bits=8, parity=None, stop=1)
+
+disable_nav_sol()
 
 while True:
     gps_ubx_pkt = recv_gps_pkt()
