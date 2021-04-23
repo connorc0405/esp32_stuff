@@ -200,7 +200,7 @@ def recv_net_msg(conn):
 
 
 def main():
-    time.sleep(3)  # Give time for GPS to boot
+    time.sleep(2)  # Give time for GPS to boot
 
     ap = network.WLAN(network.AP_IF)
     ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.10.10.1', '8.8.8.8'))
