@@ -4,6 +4,8 @@ from machine import UART
 import time
 from pyubx2 import UBXReader, UBXMessage, SET
 from binascii import hexlify
+import _thread
+# import mutex
 
 
 # DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd5'  # <UBX(CFG-MSG, msgClass=NAV, msgID=NAV-SOL, rateDDC=0, rateUART1=0, rateUART2=0, rateUSB=0, rateSPI=0, reserved=0)>
@@ -33,6 +35,8 @@ def disable_nav_sol(uart_if):
 
 
 def modify_pvt_pkt(pkt):
+    # print()
+    print("Not modifying")
     return pkt
     # TODO
 
@@ -43,7 +47,7 @@ def recv_gps_pkt(uart_if):
     header = uart_if.read(2)
     # print("Header: " + str(hexlify(header)))
     if int.from_bytes(header, "big") != 0xb562:
-        raise Exception("Header not right, is " + str(header))
+        raise Exception("Header not right, is " + str(header))  # TODO this breaks sometimes
     data_received.extend(header)
     msg_class = uart_if.read(1)
     # print("Class: " + str(hexlify(msg_class)))
@@ -59,7 +63,6 @@ def recv_gps_pkt(uart_if):
     data_received.extend(payload)
     checksum = uart_if.read(2)
     data_received.extend(checksum)
-
     return data_received
 
 
@@ -70,46 +73,52 @@ def send_gps_pkt(uart_if, raw_data):
         num_written += num_recv
 
 
-def recv_ubx(conn_sock):
-    recv_buf = bytearray()
-    while len(recv_buf) < 6:  # Idx 4-5 contain payload length
-        try:
-            # Check if data there.  If not, return "no data"
-            conn_sock.setblocking(0)
-            data = conn_sock.recv(6-len(recv_buf)) # TODO make sure we get 6!!!
-        except OSError as err:
-            if err.args[0] == errno.EAGAIN:  # https://stackoverflow.com/questions/16745409/what-does-pythons-socket-recv-return-for-non-blocking-sockets-if-no-data-is-r
-                print("Socket would block")
-                return ("no data", None)
+def worker_thread():
+    listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listen_sock.bind(('10.10.10.1', 8080))
+    listen_sock.listen(1)
+
+    while True:
+        print("Waiting on connection")
+        conn_sock, _ = listen_sock.accept()
+        print("Accepted socket")
+        
+        while True:
+            pkt = recv_net_msg(conn_sock)
+            if pkt is None:
+                conn_sock.close()
+                # TODO zero out transformations
+                break
+
+            print(hexlify(pkt))
+            characteristic = pkt[0]
+            change = int.from_bytes(pkt[1:], "big", signed=True)
+            if characteristic == b'A':  # Height
+                print("Height change")
+                # TODO transformation
+                print("Change is :" + str(change))
             else:
-                print(err)
-                conn_sock.sendall(b'socket error')
-                print("Socket error")
-                return ("fail", None)
+                raise Exception("Unimplemented characteristic change")
+            
 
-        if len(data) == 0:
-            print("Closed socket")
-            return ("fail", None)
-        
-        recv_buf.extend(data)
-
-    payload_len = int.from_bytes(recv_buf[4:], 'little')
-
-    while len(recv_buf) < payload_len + 8:  # 6 bytes + payload + 2 bytes checksum
+def recv_net_msg(conn):
+    """
+    Return message from laptop
+    """
+    received = bytearray()
+    while len(received) < 3:
         try:
-            conn_sock.setblocking(1)
-            data = conn_sock.recv(payload_len + 8 - len(recv_buf))
-        except:
+            data = conn.recv(3-len(received))
+            received.append(data)
+        except Exception as err:
+            print(err)
             print("Socket error")
-            return ("fail", None)
-        
+            return None
         if len(data) == 0:
-            print("Closed socket")
-            return ("fail", None)
-        
-        recv_buf.extend(data)
-
-    return ("newpkt", bytes(recv_buf))
+            print("Socket closed")
+            return None
+    return bytes(received)
 
 
 def main():
@@ -130,6 +139,8 @@ def main():
 
     disable_nav_sol(uart_gps)
 
+    _thread.start_new_thread(worker_thread, ())
+
     num=0
     while True:
         print(num)
@@ -144,36 +155,6 @@ def main():
         send_gps_pkt(uart_ardupilot, modified_pvt_pkt)
 
         num+=1
-
-    # listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # listen_sock.bind(('10.10.10.1', 8080))
-    # listen_sock.listen(1)
-
-    # while True:
-    #     print("Waiting on connection")
-    #     conn_sock, _ = listen_sock.accept()
-    #     conn_sock.setblocking(0)
-    #     print("New connection")
-    #     num=1
-    #     cur_pkt = None
-    #     while True:
-    #         print("Here")
-    #         time.sleep(.200)
-    #         status, new_pkt = recv_ubx(conn_sock)
-    #         if status == "fail": # Socket failure
-    #             conn_sock.close()
-    #             break
-    #         elif status == "no data":
-    #             print("No new data")
-    #         elif status == "newpkt":  # Good packet
-    #             print("Packet " + str(num))
-    #             cur_pkt = new_pkt
-    #             print(type(cur_pkt))
-    #             num+=1
-    #         else:
-    #             raise Exception("IDK")
-    #         uart.write(cur_pkt)
 
 
 class Transforms():
