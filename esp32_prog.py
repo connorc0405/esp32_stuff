@@ -35,13 +35,65 @@ def disable_nav_sol(uart_if):
 
 
 def modify_pvt_pkt(pkt, transforms):
+
     transforms.lock.acquire()
+
     # TODO
+    payload_offset = 6
+
+    # pvt_payload = pkt[6:-2]
+
+    # Set fix status and num sats.  Comment after testing.
+    # pkt[payload_offset + 20: payload_offset + 21] = int.to_bytes(3, 1, 'little', False)  # Fix 3
+    # pkt[payload_offset + 23: payload_offset + 24] = int.to_bytes(12, 1, 'little', False)  # Num Sats 12
+
+    year_bytes = pkt[payload_offset + 4: payload_offset + 6]
+    print("Year: " + str(int.from_bytes(year_bytes, 'little', False)))
+
+    h_msl_bytes = pkt[payload_offset + 36: payload_offset + 40]
+    print("hMSL: " + str(int.from_bytes(h_msl_bytes, 'little', True)))
+
     if transforms.h_msl != 0:
-        pkt_h_msl = pkt[]
+        h_msl_bytes = pkt[payload_offset + 36: payload_offset + 40]
+        existing_h_msl = int.from_bytes(h_msl_bytes, 'little', True)
+        print("Existing hMSL: " + str(existing_h_msl))
+        new_h_msl = transforms.h_msl + existing_h_msl
+        print("Adding: " + str(transforms.h_msl))
+        print("New hMSL: " + str(new_h_msl))
+        new_h_msl_bytes = int.to_bytes(new_h_msl, 4, 'little', True)
+        pkt[payload_offset + 36: payload_offset + 40] = new_h_msl_bytes
+        # TODO CHECK
+        # print(str(pkt_h_msl))
+
     transforms.lock.release()
 
+    ck_a, ck_b = checksum(pkt[2:-2])
+    pkt[-2:-1] = ck_a.to_bytes(1, 'big', False)
+    pkt[-1:] = ck_b.to_bytes(1, 'big', False)
+
     return pkt
+
+
+def checksum(content) -> bytes:  # Stolen from pyubx2
+    """
+    Calculate checksum using 8-bit Fletcher's algorithm.
+
+    :param bytes content: message content, excluding header and checksum bytes
+    :return: checksum
+    :rtype: bytes
+
+    """
+
+    check_a = 0
+    check_b = 0
+
+    for char in content:
+        check_a += char
+        check_a &= 0xFF
+        check_b += check_a
+        check_b &= 0xFF
+
+    return bytes((check_a, check_b))
 
 
 def recv_gps_pkt(uart_if):
@@ -92,6 +144,10 @@ def worker_thread(transforms):
             if pkt is None:
                 conn_sock.close()
                 # TODO zero out transformations
+                transforms.lock.acquire()
+                transforms.clear()
+                print("Cleared transforms")
+                transforms.lock.release()
                 break
 
             changes = ujson.loads(pkt.decode('utf-8'))
@@ -186,11 +242,12 @@ class Transforms():
         self.lock = _thread.allocate_lock()
         self.h_msl = 0
 
+    def clear(self):
+        self.h_msl = 0
+
 
 if __name__ == "__main__":
     main()
-
-
 
 
 
