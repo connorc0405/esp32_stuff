@@ -17,6 +17,15 @@ def disable_nav_sol(uart_gps):
     reader = UBXReader(uart_gps)
     while True:
         send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
+        send_uart(uart_gps, DISABLE_NAV_SOL)
 
         idx = 0
         limit = 5
