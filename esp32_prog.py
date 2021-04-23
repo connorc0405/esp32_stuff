@@ -13,13 +13,10 @@ DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd
 # UBXMessage('CFG', 'CFG-MSG', SET, msgClass=1, msgID=6, rate=0)
 
 
-def disable_nav_sol(uart_if):
-    reader = UBXReader(uart_if)
+def disable_nav_sol(uart_gps):
+    reader = UBXReader(uart_gps)
     while True:
-        num_written = 0
-        while num_written < len(DISABLE_NAV_SOL):
-            num_recv = uart_if.write(DISABLE_NAV_SOL[num_written:])
-            num_written += num_recv
+        send_uart(uart_gps, DISABLE_NAV_SOL)
 
         idx = 0
         limit = 5
@@ -38,7 +35,6 @@ def modify_pvt_pkt(pkt, transforms):
 
     transforms.lock.acquire()
 
-    # TODO
     payload_offset = 6
 
     # pvt_payload = pkt[6:-2]
@@ -96,32 +92,32 @@ def checksum(content) -> bytes:  # Stolen from pyubx2
     return bytes((check_a, check_b))
 
 
-def recv_gps_pkt(uart_if):
+def recv_gps_pkt(uart_gps):
     data_received = bytearray()
 
-    header = uart_if.read(2)
+    header = uart_gps.read(2)
     # print("Header: " + str(hexlify(header)))
     if int.from_bytes(header, "big") != 0xb562:
         raise Exception("Header not right, is " + str(header))  # TODO this breaks sometimes
     data_received.extend(header)
-    msg_class = uart_if.read(1)
+    msg_class = uart_gps.read(1)
     # print("Class: " + str(hexlify(msg_class)))
     data_received.extend(msg_class)
-    msg_id = uart_if.read(1)
+    msg_id = uart_gps.read(1)
     # print("ID: " + str(hexlify(msg_id)))
     data_received.extend(msg_id)
-    length = uart_if.read(2)
+    length = uart_gps.read(2)
     data_received.extend(length)
     length = int.from_bytes(length, "little")
     # print("Length: " + str(length))
-    payload = uart_if.read(length)
+    payload = uart_gps.read(length)
     data_received.extend(payload)
-    checksum = uart_if.read(2)
+    checksum = uart_gps.read(2)
     data_received.extend(checksum)
     return data_received
 
 
-def send_gps_pkt(uart_if, raw_data):
+def send_uart(uart_if, raw_data):
     num_written = 0
     while num_written < len(raw_data):
         num_recv = uart_if.write(raw_data[num_written:])
@@ -140,7 +136,7 @@ def worker_thread(transforms):
         print("Accepted socket")
         
         while True:
-            pkt = recv_net_msg(conn_sock)
+            pkt = recv_transform_msg(conn_sock)
             if pkt is None:
                 conn_sock.close()
                 # TODO zero out transformations
@@ -163,7 +159,7 @@ def worker_thread(transforms):
             transforms.lock.release()
             
 
-def recv_net_msg(conn):
+def recv_transform_msg(conn):
     """
     Return message from laptop
     """
@@ -232,7 +228,7 @@ def main():
             continue  # Not PVT
 
         modified_pvt_pkt = modify_pvt_pkt(gps_ubx_pkt, transforms)
-        send_gps_pkt(uart_ardupilot, modified_pvt_pkt)
+        send_uart(uart_ardupilot, modified_pvt_pkt)
 
         num+=1
 
