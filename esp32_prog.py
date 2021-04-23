@@ -5,7 +5,7 @@ import time
 from pyubx2 import UBXReader, UBXMessage, SET
 from binascii import hexlify
 import _thread
-# import mutex
+import ujson
 
 
 # DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd5'  # <UBX(CFG-MSG, msgClass=NAV, msgID=NAV-SOL, rateDDC=0, rateUART1=0, rateUART2=0, rateUSB=0, rateSPI=0, reserved=0)>
@@ -34,11 +34,14 @@ def disable_nav_sol(uart_if):
                 idx += 1
 
 
-def modify_pvt_pkt(pkt):
-    # print()
-    print("Not modifying")
-    return pkt
+def modify_pvt_pkt(pkt, transforms):
+    transforms.lock.acquire()
     # TODO
+    if transforms.h_msl != 0:
+        pkt_h_msl = pkt[]
+    transforms.lock.release()
+
+    return pkt
 
 
 def recv_gps_pkt(uart_if):
@@ -73,7 +76,7 @@ def send_gps_pkt(uart_if, raw_data):
         num_written += num_recv
 
 
-def worker_thread():
+def worker_thread(transforms):
     listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_sock.bind(('10.10.10.1', 8080))
@@ -91,26 +94,45 @@ def worker_thread():
                 # TODO zero out transformations
                 break
 
-            print(hexlify(pkt))
-            characteristic = pkt[0]
-            change = int.from_bytes(pkt[1:], "big", signed=True)
-            if characteristic == b'A':  # Height
-                print("Height change")
-                # TODO transformation
-                print("Change is :" + str(change))
+            changes = ujson.loads(pkt.decode('utf-8'))
+
+            transforms.lock.acquire()
+            if changes.get("h_msl") is not None:
+                transforms.h_msl = int(changes['h_msl'])
+                print("h_msl: " + str(transforms.h_msl))
             else:
-                raise Exception("Unimplemented characteristic change")
+                pass
+                # TODO other transforms
+
+            transforms.lock.release()
             
 
 def recv_net_msg(conn):
     """
     Return message from laptop
     """
+
     received = bytearray()
-    while len(received) < 3:
+    while len(received) < 2:
         try:
-            data = conn.recv(3-len(received))
-            received.append(data)
+            data = conn.recv(2-len(received))
+            received.extend(data)
+        except Exception as err:
+            raise err
+            print(err)
+            print("Socket error")
+            return None
+        if len(data) == 0:
+            print("Socket closed")
+            return None
+
+    length = int.from_bytes(received, 'big', False)
+
+    received = bytearray()
+    while len(received) < length:
+        try:
+            data = conn.recv(length-len(received))
+            received.extend(data)
         except Exception as err:
             print(err)
             print("Socket error")
@@ -139,7 +161,9 @@ def main():
 
     disable_nav_sol(uart_gps)
 
-    _thread.start_new_thread(worker_thread, ())
+    transforms = Transforms()
+
+    _thread.start_new_thread(worker_thread, (transforms,))
 
     num=0
     while True:
@@ -151,7 +175,7 @@ def main():
             print("Not PVT")
             continue  # Not PVT
 
-        modified_pvt_pkt = modify_pvt_pkt(gps_ubx_pkt)
+        modified_pvt_pkt = modify_pvt_pkt(gps_ubx_pkt, transforms)
         send_gps_pkt(uart_ardupilot, modified_pvt_pkt)
 
         num+=1
@@ -159,7 +183,8 @@ def main():
 
 class Transforms():
     def __init__(self):
-        self.height = 0
+        self.lock = _thread.allocate_lock()
+        self.h_msl = 0
 
 
 if __name__ == "__main__":
@@ -176,9 +201,9 @@ Program:
     - Init UART interfaces
     - Init network
     - Start worker thread
-    - Parse PVT into class
-    - Apply any necessary modifications (with mutex)
-    - Serialize PVT
+    - Read PVT
+    - Apply any necessary modifications (with mutex) -- add/subtract stored modifications
+    - Serialize PVT -- not necessary, just do modifications inline
     - Send to Board
 - Worker thread
     - Start socket thread, wait for connection

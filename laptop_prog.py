@@ -2,6 +2,8 @@ import datetime
 import socket
 import threading
 import time
+import json
+import struct
 
 from pyubx2 import UBXReader, UBXMessage, GET
 
@@ -26,8 +28,13 @@ def send_updates(conn, gps_data):
 
         if updated:  # Send new message
             gps_data.lock.acquire()
-            pkt = b'A' + gps_data.h_msl.to_bytes(2, byteorder="big", signed=True)
+            # pkt = b'A' + gps_data.h_msl.to_bytes(2, byteorder="big", signed=True)
+            pkt = {'h_msl': gps_data.h_msl}
+            gps_data.updated = False
             gps_data.lock.release()
+            pkt = json.dumps(pkt).encode('utf-8')
+            length = len(pkt)
+            pkt = int.to_bytes(length, 2, byteorder='big', signed=False) + pkt
             send_pkt(conn, pkt)
 
 
