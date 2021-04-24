@@ -1,17 +1,21 @@
 import network
 import socket
 from machine import UART
-import time
 from pyubx2 import UBXReader, UBXMessage, SET
 from binascii import hexlify
 import _thread
 import ujson
+import geo
+import utime
 
 
 # DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd5'  # <UBX(CFG-MSG, msgClass=NAV, msgID=NAV-SOL, rateDDC=0, rateUART1=0, rateUART2=0, rateUSB=0, rateSPI=0, reserved=0)>
 DISABLE_NAV_SOL = b'\xb5b\x06\x01\x08\x00\x01\x06\x00\x00\x00\x00\x00\x00\x16\xd5'  # For some reason, laptop generates different bytes than esp32
 # UBXMessage('CFG', 'CFG-MSG', SET, msgClass=1, msgID=6, rate=0)
-
+PAYLOAD_OFFSET = 6
+LAT_REF = 42.339513
+LONG_REF = -71.085144
+H_REF = 0
 
 def disable_nav_sol(uart_gps):
     reader = UBXReader(uart_gps)
@@ -40,37 +44,64 @@ def disable_nav_sol(uart_gps):
                 idx += 1
 
 
-def modify_pvt_pkt(pkt, transforms):
+def modify_pvt_pkt(pkt, transform, current_lla):
 
-    transforms.lock.acquire()
+    # Save current lat, long, h_msl to current_lla
+    cur_lat = int.from_bytes(pkt[PAYLOAD_OFFSET + 28: PAYLOAD_OFFSET + 32], 'little', True)
+    cur_long = int.from_bytes(pkt[PAYLOAD_OFFSET + 24: PAYLOAD_OFFSET + 28], 'little', True)
+    cur_h_msl = int.from_bytes(pkt[PAYLOAD_OFFSET + 36: PAYLOAD_OFFSET + 40], 'little', True)
 
-    payload_offset = 6
+    current_lla.lock.acquire()
+    current_lla.lat = cur_lat
+    current_lla.long = cur_long
+    current_lla.h_msl = cur_h_msl
+    current_lla.lock.release()
 
-    # pvt_payload = pkt[6:-2]
+    print("Year: " + str(int.from_bytes(pkt[PAYLOAD_OFFSET + 4: PAYLOAD_OFFSET + 6], 'little', False)))
+    print("hMSL: " + str(int.from_bytes(pkt[PAYLOAD_OFFSET + 36: PAYLOAD_OFFSET + 40], 'little', True)))
 
-    # Set fix status and num sats.  Comment after testing.
-    # pkt[payload_offset + 20: payload_offset + 21] = int.to_bytes(3, 1, 'little', False)  # Fix 3
-    # pkt[payload_offset + 23: payload_offset + 24] = int.to_bytes(12, 1, 'little', False)  # Num Sats 12
+    # Apply transform to current GPS packets
 
-    year_bytes = pkt[payload_offset + 4: payload_offset + 6]
-    print("Year: " + str(int.from_bytes(year_bytes, 'little', False)))
+    transform.lock.acquire()
 
-    h_msl_bytes = pkt[payload_offset + 36: payload_offset + 40]
-    print("hMSL: " + str(int.from_bytes(h_msl_bytes, 'little', True)))
+    if transform.h_msl_diff is not None:
+        # Get time elapsed and check if transform is expired. If so, clear transform so we stop using it.
+        secs_elapsed = utime.time() - transform.start_time
 
-    if transforms.h_msl != 0:
-        h_msl_bytes = pkt[payload_offset + 36: payload_offset + 40]
-        existing_h_msl = int.from_bytes(h_msl_bytes, 'little', True)
+        if secs_elapsed > transform.timeframe:
+            print("Transform expired")
+            transform.clear()
+            transform.lock.release()
+            return pkt
+
+
+        # Replace GPS hMSL with: starting_h_msl + altitude_velocity * time_elapsed
+        existing_h_msl = int.from_bytes(pkt[PAYLOAD_OFFSET + 36: PAYLOAD_OFFSET + 40], 'little', True)
+        new_h_msl = existing_h_msl + transform.altitude_velocity * secs_elapsed
+        pkt[PAYLOAD_OFFSET + 36: PAYLOAD_OFFSET + 40] = new_h_msl.to_bytes(4, 'little', True)
+
         print("Existing hMSL: " + str(existing_h_msl))
-        new_h_msl = transforms.h_msl + existing_h_msl
-        print("Adding: " + str(transforms.h_msl))
         print("New hMSL: " + str(new_h_msl))
-        new_h_msl_bytes = int.to_bytes(new_h_msl, 4, 'little', True)
-        pkt[payload_offset + 36: payload_offset + 40] = new_h_msl_bytes
-        # TODO CHECK
-        # print(str(pkt_h_msl))
 
-    transforms.lock.release()
+
+        # Replace GPS NED velocities with: previously calculated NED velocities
+        existing_gps_n = int.from_bytes(pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52], 'little', True)
+        existing_gps_e = int.from_bytes(pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56], 'little', True)
+        existing_gps_d = int.from_bytes(pkt[PAYLOAD_OFFSET + 56: PAYLOAD_OFFSET + 60], 'little', True)
+        
+        print("Existing GPS North: " + str(existing_gps_n))
+        print("Existing GPS East: " + str(existing_gps_e))
+        print("Existing GPS Down: " + str(existing_gps_d))
+
+        pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52] = transform.v_ned_north.to_bytes(4, 'little', True)
+        pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56] = transform.v_ned_east.to_bytes(4, 'little', True)
+        pkt[PAYLOAD_OFFSET + 56: PAYLOAD_OFFSET + 60] = transform.v_ned_down.to_bytes(4, 'little', True)
+        
+        print("New GPS North: " + str(transform.v_ned_north))
+        print("New GPS East: " + str(transform.v_ned_east))
+        print("New GPS Down: " + str(transform.v_ned_down))
+
+    transform.lock.release()
 
     ck_a, ck_b = checksum(pkt[2:-2])
     pkt[-2:-1] = ck_a.to_bytes(1, 'big', False)
@@ -133,7 +164,7 @@ def send_uart(uart_if, raw_data):
         num_written += num_recv
 
 
-def worker_thread(transforms):
+def worker_thread(transform, current_lla):
     listen_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listen_sock.bind(('10.10.10.1', 8080))
@@ -148,24 +179,59 @@ def worker_thread(transforms):
             pkt = recv_transform_msg(conn_sock)
             if pkt is None:
                 conn_sock.close()
-                # TODO zero out transformations
-                transforms.lock.acquire()
-                transforms.clear()
-                print("Cleared transforms")
-                transforms.lock.release()
+                # Zero out transformations
+                transform.lock.acquire()
+                transform.clear()
+                print("Cleared transform")
+                transform.lock.release()
                 break
 
             changes = ujson.loads(pkt.decode('utf-8'))
 
-            transforms.lock.acquire()
-            if changes.get("h_msl") is not None:
-                transforms.h_msl = int(changes['h_msl'])
-                print("h_msl: " + str(transforms.h_msl))
-            else:
-                pass
-                # TODO other transforms
+            if changes.get("h_msl_diff") is not None and changes.get("timeframe") is not None:
+                # Get diff and timeframe
+                h_msl_diff = int(changes['h_msl_diff'])
+                timeframe = int(changes['timeframe'])
 
-            transforms.lock.release()
+                # Using current Lat/Long/Alt (LLA), calculate end LLA and corresponding start, end NED coordinates, and required altitude velocity.
+                current_lla.lock.acquire()
+                cur_lat = current_lla.lat
+                cur_long = current_lla.long
+                cur_h_msl = current_lla.h_msl
+                current_lla.lock.release()
+
+                end_h_msl = cur_h_msl + h_msl_diff
+
+                # Geo uses height in METERS not MM
+                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
+
+                # Note NED vs. ENU -- just invert Up velocity to get Down velocity
+                # Use S=D/T on start and end NED coordinates to calculate new NED velocities
+                # ^^ WILL LIKELY BE IN METERS/SEC NOT MM/SEC
+                v_enu_east = int((end_enu_east - start_enu_east) / timeframe) * 1000
+                v_enu_north =int((end_enu_north - start_enu_north) / timeframe) * 1000
+                v_enu_up = int((end_enu_up - start_enu_up) / timeframe) * 1000
+
+                # Alt velocity
+                altitude_velocity = int(h_msl_diff / timeframe)
+
+                # Start time
+                start_time = utime.time()
+
+                # Set values in transform object (lock!)
+                transform.lock.acquire()
+                transform.h_msl_diff = h_msl_diff
+                transform.starting_h_msl = cur_h_msl
+                transform.altitude_velocity = altitude_velocity
+                transform.v_ned_north = v_enu_east  # Think you're supposed to swap these https://core.ac.uk/download/pdf/5164477.pdf
+                transform.v_ned_east = v_enu_north
+                transform.v_ned_down = v_enu_up * -1
+                transform.start_time = start_time
+                transform.timeframe = timeframe
+                transform.lock.release()
+
+                print("h_msl_diff: " + str(transform.h_msl_diff))
             
 
 def recv_transform_msg(conn):
@@ -205,7 +271,7 @@ def recv_transform_msg(conn):
 
 
 def main():
-    time.sleep(2)  # Give time for GPS to boot
+    utime.sleep(2)  # Give time for GPS to boot
 
     ap = network.WLAN(network.AP_IF)
     ap.ifconfig(('10.10.10.1', '255.255.255.0', '10.10.10.1', '8.8.8.8'))
@@ -222,9 +288,10 @@ def main():
 
     disable_nav_sol(uart_gps)
 
-    transforms = Transforms()
+    transform = Transform()
+    current_lla = CurrentLLA()
 
-    _thread.start_new_thread(worker_thread, (transforms,))
+    _thread.start_new_thread(worker_thread, (transform, current_lla))
 
     num=0
     while True:
@@ -236,19 +303,41 @@ def main():
             print("Not PVT")
             continue  # Not PVT
 
-        modified_pvt_pkt = modify_pvt_pkt(gps_ubx_pkt, transforms)
+        modified_pvt_pkt = modify_pvt_pkt(gps_ubx_pkt, transform, current_lla)
         send_uart(uart_ardupilot, modified_pvt_pkt)
 
         num+=1
 
 
-class Transforms():
+class Transform():
     def __init__(self):
         self.lock = _thread.allocate_lock()
-        self.h_msl = 0
+        self.h_msl_diff = None  # mm
+        self.starting_h_msl = None  # mm
+        self.altitude_velocity = None # mm/sec
+        self.v_ned_north = None  # mm/sec
+        self.v_ned_east = None  # mm/sec
+        self.v_ned_down = None  # mm/sec
+        self.start_time = None  # sec since epoch
+        self.timeframe = None  # Seconds
 
     def clear(self):
-        self.h_msl = 0
+        self.h_msl_diff = None
+        self.starting_h_msl = None
+        self.altitude_velocity = None
+        self.v_ned_north = None
+        self.v_ned_east = None
+        self.v_ned_down = None
+        self.start_time = None
+        self.timeframe = None
+
+
+class CurrentLLA():
+    def __init__(self):
+        self.lock = _thread.allocate_lock()
+        self.lat = None
+        self.long = None
+        self.h_msl = None  # mm
 
 
 if __name__ == "__main__":
@@ -273,4 +362,44 @@ Program:
     - Interpret command
     - Save command (with mutex)
 
+
+Take incoming altitude adjustment and timeframe from client
+    Using current Lat/Long/Alt (LLA), calculate end LLA and corresponding start, end NED coordinates, and required altitude velocity.
+    Use S=D/T on start and end NED coordinates to calculate new NED velocities
+    Save starting_h_msl, altitude_velocity, start_time, timeframe
+
+On incoming GPS message (before time has expired):
+    Get time_elapsed since transform was received from client
+    Replace GPS hMSL with: starting_h_msl + altitude_velocity * time_elapsed
+    Replace GPS NED velocities with: previously calculated NED velocities
+
+On incoming GPS message (after time has expired) to hold drone at new position:
+    Keep replacing but stop replacing NED velocities.
+
+    # TODO speed accuracy?
+
+
+"""
+
+
+
+
+
+
+
+
+
+"""
+Take incoming altitude adjustment and timeframe from client
+    Using current Lat/Long/Alt (LLA), calculate end LLA and corresponding start, end NED coordinates, and required altitude velocity.
+    Use S=D/T on start and end NED coordinates to calculate new NED velocities
+    Note starting_h_msl, altitude_velocity, NED velocities, start_time, end_time
+
+On incoming GPS message (before time has expired):
+    Get time_elapsed since transform was received from client
+    Replace GPS hMSL with calculated height: starting_h_msl + altitude_velocity * time_elapsed
+    Replace GPS NED with previously calculated NED speed
+
+On incoming GPS message (after time has expired):
+    Keep new height constant but stop replacing NED velocities.
 """

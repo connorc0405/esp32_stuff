@@ -11,6 +11,8 @@ from pyubx2 import UBXReader, UBXMessage, GET
 REMOTE_IP_ADDR = "10.10.10.1"
 REMOTE_PORT = 8080
 
+ADJUSTMENT_TIMEFRAME = 5  # Seconds
+
 
 def send_pkt(conn, pkt):
     len_pkt = len(pkt)
@@ -29,7 +31,8 @@ def send_updates(conn, gps_data):
         if updated:  # Send new message
             gps_data.lock.acquire()
             # pkt = b'A' + gps_data.h_msl.to_bytes(2, byteorder="big", signed=True)
-            pkt = {'h_msl': gps_data.h_msl}
+            pkt = {'h_msl_diff': gps_data.h_msl_diff,
+                    'timeframe': ADJUSTMENT_TIMEFRAME }
             gps_data.updated = False
             gps_data.lock.release()
             pkt = json.dumps(pkt).encode('utf-8')
@@ -73,14 +76,14 @@ def key_monitor(gps_data):
         if char == '[':  # increase height
             print("up")
             gps_data.lock.acquire()
-            gps_data.h_msl += 500
+            gps_data.h_msl_diff += 500
             gps_data.updated = True
             gps_data.lock.release()
 
         elif char == '\'':  # decrease height
             print("down")
             gps_data.lock.acquire()
-            gps_data.h_msl -= 500
+            gps_data.h_msl_diff -= 500
             gps_data.updated = True
             gps_data.lock.release()
 
@@ -103,7 +106,7 @@ def main():
 
 class GPSData():
     def __init__(self):
-        self.h_msl = 0
+        self.h_msl_diff = 0
         self.updated = False
         self.lock = threading.Lock()
 
@@ -111,5 +114,12 @@ class GPSData():
 if __name__ == "__main__":
     main()
 
+
+"""
+
+Choose constant time over which altitude adjustment will be performed
+Send with adjustment
+
+"""
 
 
