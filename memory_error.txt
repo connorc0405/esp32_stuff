@@ -1,0 +1,58 @@
+Last login: Thu Apr 15 14:10:06 on ttys002
+Connor$: python3 laptop_prog.py 
+sadas
+^CTraceback (most recent call last):
+  File "/Users/Connor/Documents/NEU/Spring 2021/CY 4930 Capstone/esp32_stuff/laptop_prog.py", line 116, in <module>
+    main()
+  File "/Users/Connor/Documents/NEU/Spring 2021/CY 4930 Capstone/esp32_stuff/laptop_prog.py", line 100, in main
+    char = input()
+KeyboardInterrupt
+
+Connor$: screen /dev/tty.usbserial-
+tty.usbserial-145230    tty.usbserial-D309RHNM  
+Connor$: screen /dev/tty.usbserial-145230 115200
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+92
+Packet 17
+92
+Packet 18
+92
+Packet 19
+92
+Packet 20
+92
+Packet 21
+92
+Packet 22
+92
+Packet 23
+92
+Packet 24
+92
+Packet 25
+92
+92
+Packet 26
+65206
+65206
+Traceback (most recent call last):
+  File "main.py", line 50, in <module>
+  File "main.py", line 16, in recv_ubx
+MemoryError: memory allocation failed, allocating 65209 bytes
+MicroPython v1.14 on 2021-02-02; ESP32 module with ESP32
+Type "help()" for more information.
+>>> 
