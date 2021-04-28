@@ -93,8 +93,8 @@ def modify_pvt_pkt(pkt, transform, current_lla):
         print("Existing GPS East: " + str(existing_gps_e))
         print("Existing GPS Down: " + str(existing_gps_d))
 
-        pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52] = transform.v_ned_north.to_bytes(4, 'little', True)
-        pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56] = transform.v_ned_east.to_bytes(4, 'little', True)
+        # pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52] = transform.v_ned_north.to_bytes(4, 'little', True)
+        # pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56] = transform.v_ned_east.to_bytes(4, 'little', True)
         pkt[PAYLOAD_OFFSET + 56: PAYLOAD_OFFSET + 60] = transform.v_ned_down.to_bytes(4, 'little', True)
         
         print("New GPS North: " + str(transform.v_ned_north))
