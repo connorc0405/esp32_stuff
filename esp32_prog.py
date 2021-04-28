@@ -224,8 +224,8 @@ def worker_thread(transform, current_lla):
                 transform.h_msl_diff = h_msl_diff
                 transform.starting_h_msl = cur_h_msl
                 transform.altitude_velocity = altitude_velocity
-                transform.v_ned_north = v_enu_east  # Think you're supposed to swap these https://core.ac.uk/download/pdf/5164477.pdf
-                transform.v_ned_east = v_enu_north
+                transform.v_ned_north = v_enu_north  # https://core.ac.uk/download/pdf/5164477.pdf
+                transform.v_ned_east = v_enu_east
                 transform.v_ned_down = v_enu_up * -1
                 transform.start_time = start_time
                 transform.timeframe = timeframe
