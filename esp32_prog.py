@@ -209,9 +209,9 @@ def worker_thread(transform, current_lla):
                 # Note NED vs. ENU -- just invert Up velocity to get Down velocity
                 # Use S=D/T on start and end NED coordinates to calculate new NED velocities
                 # ^^ WILL LIKELY BE IN METERS/SEC NOT MM/SEC
-                v_enu_east = int(((end_enu_east - start_enu_east) / timeframe) * 1000)
-                v_enu_north = int(((end_enu_north - start_enu_north) / timeframe) * 1000)
-                v_enu_up = int(((end_enu_up - start_enu_up) / timeframe) * 1000)
+                v_enu_east = int(((end_enu_east - start_enu_east) / float(timeframe)) * 1000)
+                v_enu_north = int(((end_enu_north - start_enu_north) / float(timeframe)) * 1000)
+                v_enu_up = int(((end_enu_up - start_enu_up) / float(timeframe)) * 1000)
 
                 # Alt velocity
                 altitude_velocity = int(h_msl_diff / timeframe)
