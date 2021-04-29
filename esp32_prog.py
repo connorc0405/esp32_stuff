@@ -203,8 +203,8 @@ def worker_thread(transform, current_lla):
                 end_h_msl = cur_h_msl + h_msl_diff
 
                 # Geo uses height in METERS not MM
-                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
-                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
 
                 # Note NED vs. ENU -- just invert Up velocity to get Down velocity
                 # Use S=D/T on start and end NED coordinates to calculate new NED velocities
@@ -226,7 +226,11 @@ def worker_thread(transform, current_lla):
                 transform.altitude_velocity = altitude_velocity
                 transform.v_ned_north = v_enu_north  # https://core.ac.uk/download/pdf/5164477.pdf
                 transform.v_ned_east = v_enu_east
-                transform.v_ned_down = v_enu_up * -1
+                if h_msl_diff > 0:
+                    transform.v_ned_down = -2000
+                else:
+                    transform.v_ned_down = 2000
+                # transform.v_ned_down = v_enu_up * -1
                 transform.start_time = start_time
                 transform.timeframe = timeframe
                 transform.lock.release()

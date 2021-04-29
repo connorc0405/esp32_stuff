@@ -11,7 +11,7 @@ from pyubx2 import UBXReader, UBXMessage, GET
 REMOTE_IP_ADDR = "10.10.10.1"
 REMOTE_PORT = 8080
 
-ADJUSTMENT_TIMEFRAME = 5  # Seconds
+ADJUSTMENT_TIMEFRAME = 10  # Seconds
 
 
 def send_pkt(conn, pkt):
@@ -76,14 +76,14 @@ def key_monitor(gps_data):
         if char == '[':  # increase height
             print("up")
             gps_data.lock.acquire()
-            gps_data.h_msl_diff += 500
+            gps_data.h_msl_diff += 4000
             gps_data.updated = True
             gps_data.lock.release()
 
         elif char == '\'':  # decrease height
             print("down")
             gps_data.lock.acquire()
-            gps_data.h_msl_diff -= 500
+            gps_data.h_msl_diff -= 4000
             gps_data.updated = True
             gps_data.lock.release()
 
