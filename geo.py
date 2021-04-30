@@ -1,3 +1,5 @@
+# From https://gist.github.com/sbarratt/a72bede917b482826192bf34f9ff5d0b#file-geo-py-L11
+
 """
 This script provides coordinate transformations from Geodetic -> ECEF, ECEF -> ENU
 and Geodetic -> ENU (the composition of the two previous functions). Running the script

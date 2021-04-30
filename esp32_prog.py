@@ -203,8 +203,8 @@ def worker_thread(transform, current_lla):
                 end_h_msl = cur_h_msl + h_msl_diff
 
                 # Geo uses height in METERS not MM
-                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
-                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF)
+                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF)
 
                 # Note NED vs. ENU -- just invert Up velocity to get Down velocity
                 # Use S=D/T on start and end NED coordinates to calculate new NED velocities
@@ -350,7 +350,6 @@ if __name__ == "__main__":
 
 
 """
-
 Program:
 - Main thread
     - Init UART interfaces
@@ -366,7 +365,6 @@ Program:
     - Interpret command
     - Save command (with mutex)
 
-
 Take incoming altitude adjustment and timeframe from client
     Using current Lat/Long/Alt (LLA), calculate end LLA and corresponding start, end NED coordinates, and required altitude velocity.
     Use S=D/T on start and end NED coordinates to calculate new NED velocities
@@ -377,33 +375,6 @@ On incoming GPS message (before time has expired):
     Replace GPS hMSL with: starting_h_msl + altitude_velocity * time_elapsed
     Replace GPS NED velocities with: previously calculated NED velocities
 
-On incoming GPS message (after time has expired) to hold drone at new position:
-    Keep replacing but stop replacing NED velocities.
-
-    # TODO speed accuracy?
-
-
-"""
-
-
-
-
-
-
-
-
-
-"""
-Take incoming altitude adjustment and timeframe from client
-    Using current Lat/Long/Alt (LLA), calculate end LLA and corresponding start, end NED coordinates, and required altitude velocity.
-    Use S=D/T on start and end NED coordinates to calculate new NED velocities
-    Note starting_h_msl, altitude_velocity, NED velocities, start_time, end_time
-
-On incoming GPS message (before time has expired):
-    Get time_elapsed since transform was received from client
-    Replace GPS hMSL with calculated height: starting_h_msl + altitude_velocity * time_elapsed
-    Replace GPS NED with previously calculated NED speed
-
-On incoming GPS message (after time has expired):
-    Keep new height constant but stop replacing NED velocities.
+On incoming GPS message (after time has expired)
+    Stop modifying GPS data
 """
