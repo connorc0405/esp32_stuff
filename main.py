@@ -93,8 +93,8 @@ def modify_pvt_pkt(pkt, transform, current_lla):
         print("Existing GPS East: " + str(existing_gps_e))
         print("Existing GPS Down: " + str(existing_gps_d))
 
-        # pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52] = transform.v_ned_north.to_bytes(4, 'little', True)
-        # pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56] = transform.v_ned_east.to_bytes(4, 'little', True)
+        pkt[PAYLOAD_OFFSET + 48: PAYLOAD_OFFSET + 52] = transform.v_ned_north.to_bytes(4, 'little', True)
+        pkt[PAYLOAD_OFFSET + 52: PAYLOAD_OFFSET + 56] = transform.v_ned_east.to_bytes(4, 'little', True)
         pkt[PAYLOAD_OFFSET + 56: PAYLOAD_OFFSET + 60] = transform.v_ned_down.to_bytes(4, 'little', True)
         
         print("New GPS North: " + str(transform.v_ned_north))
@@ -203,15 +203,15 @@ def worker_thread(transform, current_lla):
                 end_h_msl = cur_h_msl + h_msl_diff
 
                 # Geo uses height in METERS not MM
-                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
-                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000.0, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                start_enu_east, start_enu_north, start_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, cur_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
+                end_enu_east, end_enu_north, end_enu_up = geo.geodetic_to_enu(cur_lat, cur_long, end_h_msl / 1000, LAT_REF, LONG_REF, H_REF) # TODO FIX
 
                 # Note NED vs. ENU -- just invert Up velocity to get Down velocity
                 # Use S=D/T on start and end NED coordinates to calculate new NED velocities
                 # ^^ WILL LIKELY BE IN METERS/SEC NOT MM/SEC
-                v_enu_east = int(((end_enu_east - start_enu_east) / float(timeframe)) * 1000)
-                v_enu_north = int(((end_enu_north - start_enu_north) / float(timeframe)) * 1000)
-                v_enu_up = int(((end_enu_up - start_enu_up) / float(timeframe)) * 1000)
+                v_enu_east = int((end_enu_east - start_enu_east) / timeframe) * 1000
+                v_enu_north =int((end_enu_north - start_enu_north) / timeframe) * 1000
+                v_enu_up = int((end_enu_up - start_enu_up) / timeframe) * 1000
 
                 # Alt velocity
                 altitude_velocity = int(h_msl_diff / timeframe)
@@ -224,13 +224,9 @@ def worker_thread(transform, current_lla):
                 transform.h_msl_diff = h_msl_diff
                 transform.starting_h_msl = cur_h_msl
                 transform.altitude_velocity = altitude_velocity
-                transform.v_ned_north = v_enu_north  # https://core.ac.uk/download/pdf/5164477.pdf
-                transform.v_ned_east = v_enu_east
-                if h_msl_diff > 0:
-                    transform.v_ned_down = -2000
-                else:
-                    transform.v_ned_down = 2000
-                # transform.v_ned_down = v_enu_up * -1
+                transform.v_ned_north = v_enu_east  # Think you're supposed to swap these https://core.ac.uk/download/pdf/5164477.pdf
+                transform.v_ned_east = v_enu_north
+                transform.v_ned_down = v_enu_up * -1
                 transform.start_time = start_time
                 transform.timeframe = timeframe
                 transform.lock.release()

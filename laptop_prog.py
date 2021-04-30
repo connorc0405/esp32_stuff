@@ -2,6 +2,8 @@ import datetime
 import socket
 import threading
 import time
+import json
+import struct
 
 from pyubx2 import UBXReader, UBXMessage, GET
 
@@ -9,20 +11,10 @@ from pyubx2 import UBXReader, UBXMessage, GET
 REMOTE_IP_ADDR = "10.10.10.1"
 REMOTE_PORT = 8080
 
-
-class GPSData():
-    def __init__(self, itow, lat, lon, h_msl, fix_type, num_sats):
-        self.itow = itow
-        self.lat = lat
-        self.lon = lon
-        self.h_msl = h_msl
-        self.fix_type = fix_type
-        self.num_sats = num_sats
-        self.updated = True  # Send first one correctly
-        self.lock = threading.Lock()
+ADJUSTMENT_TIMEFRAME = 10  # Seconds
 
 
-def send_msg(conn, pkt):
+def send_pkt(conn, pkt):
     len_pkt = len(pkt)
     total_bytes_sent=0
     while total_bytes_sent < len_pkt:
@@ -30,77 +22,68 @@ def send_msg(conn, pkt):
         total_bytes_sent += bytes_sent
 
 
-def gen_msgs(conn, gps_data):
-    num = 1
+def send_updates(conn, gps_data):
     while True:
         gps_data.lock.acquire()
         updated = gps_data.updated
         gps_data.lock.release()
 
-        if updated:  # Only sending data when updated.  Else, do nothing.
+        if updated:  # Send new message
             gps_data.lock.acquire()
-            nav_pvt = UBXMessage(
-                "NAV",
-                "NAV-PVT",
-                GET,
-                iTOW=gps_data.itow,
-                lat=gps_data.lat,
-                lon=gps_data.lon,
-                hMSL=gps_data.h_msl,
-                fixType=gps_data.fix_type,
-                numSV=gps_data.num_sats
-            )
-            gps_data.itow += 200
+            # pkt = b'A' + gps_data.h_msl.to_bytes(2, byteorder="big", signed=True)
+            pkt = {'h_msl_diff': gps_data.h_msl_diff,
+                    'timeframe': ADJUSTMENT_TIMEFRAME }
             gps_data.updated = False
             gps_data.lock.release()
-            print(f"Sending NAV-PVT {num}")
-            num+=1
-            send_msg(conn, nav_pvt.serialize())
+            pkt = json.dumps(pkt).encode('utf-8')
+            length = len(pkt)
+            pkt = int.to_bytes(length, 2, byteorder='big', signed=False) + pkt
+            send_pkt(conn, pkt)
 
 
 def key_monitor(gps_data):
     while True:
         char = input()
         print(repr(char))
-        if char == 'w':  # increase latitude
-            print("north")
-            gps_data.lock.acquire()
-            gps_data.lat += 200
-            gps_data.updated = True
-            gps_data.lock.release()
+        # if char == 'w':  # increase latitude
+        #     print("north")
+        #     gps_data.lock.acquire()
+        #     gps_data.lat += 200
+        #     gps_data.updated = True
+        #     gps_data.lock.release()
 
-        elif char == 's':  # decrease latitude
-            print("south")
-            gps_data.lock.acquire()
-            gps_data.lat -= 200
-            gps_data.updated = True
-            gps_data.lock.release()
+        # elif char == 's':  # decrease latitude
+        #     print("south")
+        #     gps_data.lock.acquire()
+        #     gps_data.lat -= 200
+        #     gps_data.updated = True
+        #     gps_data.lock.release()
 
-        elif char == 'a':  # increase longitude
-            print("east")
-            gps_data.lock.acquire()
-            gps_data.lon += 200
-            gps_data.updated = True
-            gps_data.lock.release()
+        # elif char == 'a':  # increase longitude
+        #     print("east")
+        #     gps_data.lock.acquire()
+        #     gps_data.lon += 200
+        #     gps_data.updated = True
+        #     gps_data.lock.release()
 
-        elif char == 'd':  # decrease longitude
-            print("west")
-            gps_data.lock.acquire()
-            gps_data.lon -= 200
-            gps_data.updated = True
-            gps_data.lock.release()
+        # elif char == 'd':  # decrease longitude
+        #     print("west")
+        #     gps_data.lock.acquire()
+        #     gps_data.lon -= 200
+        #     gps_data.updated = True
+        #     gps_data.lock.release()
 
-        elif char == '[':  # increase height
+        if char == '[':  # increase height
             print("up")
             gps_data.lock.acquire()
-            gps_data.h_msl += 500
+            gps_data.h_msl_diff += 4000
             gps_data.updated = True
             gps_data.lock.release()
 
         elif char == '\'':  # decrease height
             print("down")
             gps_data.lock.acquire()
-            gps_data.h_msl -= 500
+            gps_data.h_msl_diff -= 4000
             gps_data.updated = True
             gps_data.lock.release()
 
@@ -109,21 +92,34 @@ def key_monitor(gps_data):
 
 
 def main():
-    gps_data = GPSData(itow=172399, lat=423362230, lon=-710865380, h_msl=0, fix_type=3, num_sats=12)
+    gps_data = GPSData()
 
     input_thread = threading.Thread(target=key_monitor, args=(gps_data,))
     input_thread.start()
 
     conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    conn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     conn.connect((REMOTE_IP_ADDR, REMOTE_PORT))
     print(f"Connected {REMOTE_IP_ADDR}:{REMOTE_PORT}")
 
-    gen_msgs(conn, gps_data)
+    send_updates(conn, gps_data)
+
+
+class GPSData():
+    def __init__(self):
+        self.h_msl_diff = 0
+        self.updated = False
+        self.lock = threading.Lock()
 
 
 if __name__ == "__main__":
     main()
 
+
+"""
+
+Choose constant time over which altitude adjustment will be performed
+Send with adjustment
+
+"""
 
 
